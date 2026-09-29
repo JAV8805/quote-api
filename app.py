@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 def quote_premium(age: int, coverage: float) -> float:
     """Annual premium: 1.2% of coverage, +50% loading from age 60."""
-    if age < 18 or coverage <= 0:
+    if age < 18 or coverage < 1000:
         raise ValueError("invalid input")
     base = coverage * 0.012
     factor = 1.5 if age >= 60 else 1.0
