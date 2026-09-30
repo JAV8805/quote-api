@@ -1,0 +1,7 @@
+.git
+.venv
+jenkins_home
+tests
+reports
+__pycache__
+*.md
