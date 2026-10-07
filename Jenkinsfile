@@ -10,6 +10,16 @@ pipeline {
     IMAGE = "quote-api:${env.BUILD_NUMBER}"
   }
   stages {
+    stage('Secrets scan') {
+      steps {
+        sh 'docker run --rm -v "$WORKSPACE:/repo" zricethezav/gitleaks:v8.21.2 dir /repo -v'
+      }
+    }
+    stage('SAST') {
+      steps {
+        sh 'docker run --rm -v "$WORKSPACE:/src" -w /src semgrep/semgrep semgrep scan --config p/python --error --metrics=off app.py tests'
+      }
+    }
     stage('Test') {
       agent { docker { image 'python:3.12-slim'; reuseNode true } }
       environment { HOME = "${env.WORKSPACE}" }
@@ -25,6 +35,17 @@ pipeline {
     }
     stage('Build image') {
       steps { sh 'docker build -t $IMAGE .' }
+    }
+    stage('Image scan + SBOM') {
+      steps {
+        sh '''
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache/ \\
+            aquasec/trivy:latest image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed $IMAGE
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache/ \\
+            -v "$WORKSPACE:/out" aquasec/trivy:latest image --format cyclonedx -o /out/sbom.json $IMAGE
+        '''
+      }
+      post { always { archiveArtifacts artifacts: 'sbom.json', allowEmptyArchive: true } }
     }
     stage('Smoke test') {
       steps {
